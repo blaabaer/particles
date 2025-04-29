@@ -44,6 +44,80 @@
 const MAX_BOID_TYPES = 10;
 const MIN_BOID_TYPES = 2;
 
+// ===== THEME CONFIGURATION =====
+const themes = {
+    terrazzo: {
+        colors: [
+            [205, 81, 50],    // Burnt orange/terracotta
+            [158, 152, 38],   // Olive green
+            [225, 195, 59],   // Golden yellow
+            [222, 220, 192],  // Light beige/cream
+            [59, 44, 25],     // Dark brown
+            [215, 206, 132],  // Pale olive/khaki
+            [248, 214, 201],  // Soft peach
+            [223, 150, 88],   // Light terra cotta
+            [116, 115, 107],  // Medium gray
+        ],
+        backgroundColor: [244, 248, 236]
+    },
+    neon: {
+        colors: [
+            [255, 0, 255],   // Hot pink
+            [0, 255, 255],   // Cyan
+            [255, 255, 0],   // Yellow
+            [0, 255, 0],     // Lime green
+            [255, 128, 0],   // Orange
+            [255, 0, 128],   // Pink
+            [128, 0, 255],   // Purple
+            [0, 255, 191],   // Turquoise
+            [255, 0, 0],     // Red
+        ],
+        backgroundColor: [10, 15, 35] // Dark blue
+    },
+    oceanic: {
+        colors: [
+            [32, 178, 170],    // Light sea green
+            [255, 182, 193],   // Light pink (jellyfish)
+            [176, 224, 230],   // Powder blue
+            [255, 255, 255],   // Bright white
+            [240, 248, 255],   // Translucent white
+            [255, 130, 171],   // Pink (jellyfish)
+            [173, 216, 230],   // Light blue
+            [135, 206, 250],   // Light sky blue
+            [0, 191, 255],     // Deep sky blue  
+        ],
+        backgroundColor: [25, 25, 112] // Royal blue
+    },
+    blackonwhite: {
+        colors: [
+            [50, 50, 50],      // Dark gray
+            [30, 30, 30],      // Darker gray
+            [70, 70, 70],      // Medium dark gray
+            [20, 20, 20],      // Very dark gray
+            [40, 40, 40],      // Dark gray
+            [10, 10, 10],      // Nearly black
+            [60, 60, 60],      // Medium gray
+            [5, 5, 5],         // Almost black
+            [25, 25, 25],      // Very dark gray
+        ],
+        backgroundColor: [255, 255, 255] // White
+    },
+    whiteonblack: {
+        colors: [
+            [255, 255, 255],   // Pure white
+            [250, 249, 246],   // Eggshell
+            [252, 252, 250],   // Off-white
+            [245, 245, 245],   // Whitesmoke
+            [248, 246, 240],   // Antique white
+            [253, 252, 245],   // Ivory
+            [244, 241, 237],   // Pearl
+            [246, 244, 240],   // Seashell
+            [240, 234, 214],   // Light beige
+        ],
+        backgroundColor: [0, 0, 0] // Black
+    },
+};
+
 // ===== SHARED STATE =====
 const state = {
     // Simulation Configuration
@@ -69,22 +143,12 @@ const state = {
 
     // Boid Type Configuration
     types: {
-        colors: [
-            [205, 81, 50], 
-            [225, 195, 59], 
-            [222, 220, 192], 
-            [59, 44, 25], 
-            [215, 206, 132], 
-            [248, 214, 201], 
-            [223, 150, 88], 
-            [244, 248, 236], 
-            [116, 115, 107],
-            [158, 152, 38],
-        ],
+        colors: [],
         currentCount: 5,
         activeColors: [],
         availableColors: [],
         forceMatrix: [],
+        colorIndices: [], // Store color indices instead of actual colors
     },
 
     // Simulation State
@@ -93,6 +157,7 @@ const state = {
         frictionHalfLife: 200,
         isMouseDown: false,
         lastBoidTime: 0,
+        currentTheme: 'terrazzo',
     },
 
     // ===== Initialization =====
@@ -108,11 +173,33 @@ const state = {
     },
 
     initColors() {
-        this.types.availableColors = [...this.types.colors];
+        // Reset available colors to all theme colors
+        this.types.availableColors = [...themes[this.simulation.currentTheme].colors];
+        this.types.activeColors = [];
+        this.types.colorIndices = [];
+        
+        // Create a pool of available indices
+        const availableIndices = Array.from({length: this.types.availableColors.length}, (_, i) => i);
+        
+        // Select N unique random indices
         for (let i = 0; i < this.types.currentCount; i++) {
-            const randomIndex = this.getRandomInt(0, this.types.availableColors.length - 1);
-            this.types.activeColors.push(this.types.availableColors[randomIndex]);
-            this.types.availableColors.splice(randomIndex, 1);
+            if (availableIndices.length > 0) {
+                // Randomly select an index from the available pool
+                const randomIndex = Math.floor(Math.random() * availableIndices.length);
+                const selectedIndex = availableIndices[randomIndex];
+                
+                // Add the selected color and its index
+                this.types.colorIndices.push(selectedIndex);
+                this.types.activeColors.push(this.types.availableColors[selectedIndex]);
+                
+                // Remove the used index from the pool
+                availableIndices.splice(randomIndex, 1);
+            } else {
+                // If we run out of unique indices, start repeating from the beginning
+                const index = i % this.types.availableColors.length;
+                this.types.colorIndices.push(index);
+                this.types.activeColors.push(this.types.availableColors[index]);
+            }
         }
     },
 
@@ -233,6 +320,20 @@ const state = {
     updateForceScale(value) {
         this.config.FORCE_SCALE = value * this.config.FORCE_SCALE_MULTIPLIER;
     },
+
+    setTheme(themeName) {
+        if (themes[themeName]) {
+            this.simulation.currentTheme = themeName;
+            this.initColors();
+            updateForceMatrixTable();
+            
+            // Update existing boids' colors
+            for (const boid of this.simulation.boids) {
+                const colorIndex = this.types.colorIndices[boid.type];
+                boid.color = themes[themeName].colors[colorIndex];
+            }
+        }
+    },
 };
 
 // ===== UI Elements =====
@@ -248,6 +349,7 @@ let saveMatrixBtn;
 let loadMatrixBtn;
 let matrixNameInput;
 let matrixSelect;
+let themeRadios;
 
 // ===== UI Functions =====
 function isInControlPanel(x, y) {
@@ -324,6 +426,9 @@ function updateForceMatrixTable() {
         const th = document.createElement('th');
         const dot = document.createElement('div');
         dot.className = `type-dot type-dot-${i}`;
+        const colorIndex = state.types.colorIndices[i];
+        const color = themes[state.simulation.currentTheme].colors[colorIndex];
+        dot.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
         th.appendChild(dot);
         headerRow.appendChild(th);
     }
@@ -337,6 +442,9 @@ function updateForceMatrixTable() {
         const rowHeader = document.createElement('th');
         const dot = document.createElement('div');
         dot.className = `type-dot type-dot-${i}`;
+        const colorIndex = state.types.colorIndices[i];
+        const color = themes[state.simulation.currentTheme].colors[colorIndex];
+        dot.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
         rowHeader.appendChild(dot);
         row.appendChild(rowHeader);
 
@@ -355,15 +463,6 @@ function updateForceMatrixTable() {
             row.appendChild(cell);
         }
         forceMatrixTable.appendChild(row);
-    }
-
-    // Update type dot colors
-    for (let i = 0; i < state.types.currentCount; i++) {
-        const dots = document.querySelectorAll(`.type-dot-${i}`);
-        const color = state.types.activeColors[i];
-        dots.forEach(dot => {
-            dot.style.backgroundColor = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-        });
     }
 }
 
@@ -594,10 +693,9 @@ function drawBoid(boid) {
  * Main simulation loop
  */
 function draw() {
-    background(0);
-    
-    // Draw grid visualization
-    noFill();
+    // Use the background color from the current theme
+    const bgColor = themes[state.simulation.currentTheme].backgroundColor;
+    background(bgColor[0], bgColor[1], bgColor[2]);
     
     // Add new boids while mouse is held down
     if (state.simulation.isMouseDown && millis() - state.simulation.lastBoidTime >= state.config.BOID_INTERVAL) {
@@ -674,6 +772,10 @@ window.onload = function() {
     collapseBtn = document.getElementById('collapseBtn');
     collapseBtn.textContent = 'Show'; // Start with panel hidden
     collapseBtn.addEventListener('click', toggleControlPanel);
+
+    // Initialize theme radios
+    themeRadios = document.getElementById('themeRadios');
+    updateThemeOptions();
 
     // Initialize friction slider
     frictionSlider = document.getElementById('frictionSlider');
@@ -855,4 +957,34 @@ function updateMatrixSelect() {
     } catch (error) {
         console.error('Error updating matrix select:', error);
     }
+}
+
+function updateThemeOptions() {
+    const themeRadios = document.getElementById('themeRadios');
+    themeRadios.innerHTML = ''; // Clear existing options
+    
+    // Add radio buttons for each theme
+    Object.keys(themes).forEach(themeName => {
+        const theme = themes[themeName];
+        const radio = document.createElement('div');
+        radio.className = `theme-radio ${themeName === state.simulation.currentTheme ? 'selected' : ''}`;
+        radio.dataset.theme = themeName;
+        
+        // Set CSS variables for the gradient
+        radio.style.setProperty('--color1', `rgb(${theme.colors[0].join(',')})`);
+        radio.style.setProperty('--color2', `rgb(${theme.colors[1].join(',')})`);
+        radio.style.setProperty('--color3', `rgb(${theme.colors[2].join(',')})`);
+        radio.style.setProperty('--bgColor', `rgb(${theme.backgroundColor.join(',')})`);
+        
+        radio.addEventListener('click', function() {
+            // Remove selected class from all radios
+            document.querySelectorAll('.theme-radio').forEach(r => r.classList.remove('selected'));
+            // Add selected class to clicked radio
+            this.classList.add('selected');
+            // Set the theme
+            state.setTheme(this.dataset.theme);
+        });
+        
+        themeRadios.appendChild(radio);
+    });
 }

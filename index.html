@@ -16,6 +16,13 @@
         <label for="forceScaleSlider">Force Scale: <span id="forceScaleValue">20</span></label>
         <input type="range" id="forceScaleSlider" min="0" max="100" value="20" step="0.1">
 
+        <div class="theme-controls">
+            <label>Color Theme:</label>
+            <div id="themeRadios" class="theme-radios">
+                <!-- Theme radio buttons will be dynamically generated -->
+            </div>
+        </div>
+
         <div class="type-controls">
             <button id="addTypeBtn">Add Type</button>
             <button id="removeTypeBtn">Remove Type</button>
@@ -43,8 +50,5 @@
     </div>
     <div id="toastContainer"></div>
     <script src="script.js"></script>
-    <!-- <script src="state.js"></script>
-    <script src="boid-simulation.js"></script>
-    <script src="control-panel.js"></script> -->
 </body>
 </html>
